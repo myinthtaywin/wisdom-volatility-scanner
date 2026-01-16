@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Wisdom Volatility Scanner</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 32px; max-width: 900px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-top: 16px; }
+    .score { font-size: 48px; font-weight: 800; margin: 0; }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #e5e7eb; font-size: 14px; }
+    pre { background: #0b1020; color: #e5e7eb; padding: 12px; border-radius: 10px; overflow: auto; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .muted { color: #6b7280; }
+    .section-title { font-weight: 700; margin: 0 0 6px 0; }
+    .subtle { color: #6b7280; font-size: 14px; margin: 0 0 6px 0; }
+  </style>
+</head>
+<body>
+  <h1>Wisdom Volatility Scanner</h1>
+  <p class="muted">Upload a weekly income CSV (must include an <code>amount</code> column).</p>
+
+  <div class="row">
+    <input id="file" type="file" accept=".csv" />
+    <button id="analyzeBtn">Analyze</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <div id="result" class="card" style="display:none;">
+    <div class="row" style="justify-content: space-between;">
+      <div>
+        <p class="muted" style="margin:0;">Volatility score</p>
+        <p class="score" id="score">—</p>
+        <span class="pill" id="band">—</span>
+      </div>
+
+      <div style="min-width: 280px;">
+        <p class="muted" style="margin:0 0 6px 0;">Key metrics</p>
+        <ul style="margin:0; padding-left: 18px;">
+          <li><span class="muted">Mean:</span> <span id="mean">—</span></li>
+          <li><span class="muted">Std:</span> <span id="std">—</span></li>
+          <li><span class="muted">CV:</span> <span id="cv">—</span></li>
+          <li><span class="muted">Gap rate:</span> <span id="gap">—</span></li>
+          <li><span class="muted">Max drawdown:</span> <span id="dd">—</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- AI Insights -->
+    <div id="aiInsights" style="margin-top:16px; display:none;">
+      <p class="section-title">AI insights</p>
+
+      <div style="display:flex; gap:24px; flex-wrap:wrap;">
+        <div style="min-width: 240px;">
+          <p class="subtle">Signals</p>
+          <ul id="signalsList" style="margin:0; padding-left: 18px;"></ul>
+        </div>
+
+        <div style="flex:1; min-width: 280px;">
+          <p class="subtle">Explanation</p>
+          <p id="explanationText" style="margin:0; line-height:1.45;"></p>
+
+          <p class="subtle" style="margin-top: 14px;">Safe next steps</p>
+          <ul id="nextStepsList" style="margin:0; padding-left: 18px;"></ul>
+        </div>
+      </div>
+    </div>
+
+    <details style="margin-top: 12px;">
+      <summary>Raw JSON</summary>
+      <pre id="raw"></pre>
+    </details>
+  </div>
+
+  <script>
+    const API_BASE = "";
+
+    const fileInput = document.getElementById("file");
+    const btn = document.getElementById("analyzeBtn");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const aiInsightsEl = document.getElementById("aiInsights");
+
+    function fmtMoney(x) {
+      if (typeof x !== "number") return "—";
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0
+      }).format(x);
+    }
+
+    function fmtNum(x) {
+      if (typeof x !== "number") return "—";
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(x);
+    }
+
+    function fillList(elId, items) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.innerHTML = "";
+      (items || []).forEach((t) => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        el.appendChild(li);
+      });
+    }
+
+    btn.addEventListener("click", async () => {
+      const file = fileInput.files?.[0];
+      if (!file) {
+        alert("Choose a CSV file first.");
+        return;
+      }
+
+      btn.disabled = true;
+      statusEl.textContent = "Analyzing...";
+      resultEl.style.display = "none";
+      aiInsightsEl.style.display = "none";
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(`${API_BASE}/analyze`, {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.detail || "Request failed");
+        }
+
+        // Deterministic score + metrics
+        const r = data.result;
+        const m = r.metrics;
+
+        document.getElementById("score").textContent = r.volatility_score;
+        document.getElementById("band").textContent = String(r.band || "—").toUpperCase();
+
+        document.getElementById("mean").textContent = fmtMoney(m.mean_weekly_income);
+        document.getElementById("std").textContent = fmtMoney(m.std_weekly_income);
+        document.getElementById("cv").textContent = fmtNum(m.coefficient_of_variation);
+        document.getElementById("gap").textContent = fmtNum(m.gap_rate);
+        document.getElementById("dd").textContent = fmtNum(m.max_drawdown);
+
+        // AI explanation (optional)
+        const ai = data.explanation;
+
+        if (ai) {
+          aiInsightsEl.style.display = "block";
+          fillList("signalsList", ai.signals);
+          document.getElementById("explanationText").textContent = ai.explanation || "";
+          fillList("nextStepsList", ai.safe_next_steps);
+        } else {
+          aiInsightsEl.style.display = "none";
+        }
+
+        // Raw response (for debugging)
+        document.getElementById("raw").textContent = JSON.stringify(data, null, 2);
+
+        resultEl.style.display = "block";
+        statusEl.textContent = "Done.";
+      } catch (err) {
+        console.error(err);
+        alert(`Error: ${err.message}`);
+        statusEl.textContent = "Error.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
