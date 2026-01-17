@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
+from sqlalchemy import create_engine, text
 import pandas as pd
 import numpy as np
 from io import StringIO
@@ -11,6 +12,61 @@ import json
 from dotenv import load_dotenv
 
 load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = None
+if DATABASE_URL:
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+def init_db():
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS analyses (
+                id SERIAL PRIMARY KEY,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                n_weeks INTEGER,
+                mean_weekly_income DOUBLE PRECISION,
+                std_weekly_income DOUBLE PRECISION,
+                coefficient_of_variation DOUBLE PRECISION,
+                gap_rate DOUBLE PRECISION,
+                max_drawdown DOUBLE PRECISION,
+                volatility_score INTEGER,
+                band TEXT
+            );
+        """))
+
+@app.on_event("startup")
+def _startup():
+    init_db()
+
+def save_analysis(result: dict):
+    if not engine:
+        return
+    m = result["metrics"]
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO analyses
+                (n_weeks, mean_weekly_income, std_weekly_income, coefficient_of_variation,
+                 gap_rate, max_drawdown, volatility_score, band)
+                VALUES
+                (:n_weeks, :mean, :std, :cv, :gap, :dd, :score, :band)
+            """),
+            {
+                "n_weeks": m["n_weeks"],
+                "mean": m["mean_weekly_income"],
+                "std": m["std_weekly_income"],
+                "cv": m["coefficient_of_variation"],
+                "gap": m["gap_rate"],
+                "dd": m["max_drawdown"],
+                "score": result["volatility_score"],
+                "band": result["band"],
+            }
+        )
+
 
 # OpenAI SDK (make sure installed: python3 -m pip install openai)
 from openai import OpenAI
@@ -217,6 +273,8 @@ async def analyze(file: UploadFile = File(...)):
         weekly_income = parse_csv(contents)
         result = score_volatility(weekly_income)
 
+        save_analysis(result)
+
         llm_payload = {
             "metrics": result["metrics"],
             "score": result["volatility_score"],
@@ -233,3 +291,5 @@ async def analyze(file: UploadFile = File(...)):
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
