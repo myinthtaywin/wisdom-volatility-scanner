@@ -81,137 +81,83 @@
   </div>
 
   <script>
-    const API_BASE = "";
+    const API_BASE = ""; // same-origin on Render
 
-    function getUserId() {
-      const key = "wisdom_user_id";
-      let id = localStorage.getItem(key);
-      if (!id) {
-        id = (crypto.randomUUID ? crypto.randomUUID() : `u_${Date.now()}_${Math.random()}`)
-          .toString()
-          .replace(/[^a-zA-Z0-9_-]/g, "");
-        localStorage.setItem(key, id);
-      }
-      return id;
-    }
-    const USER_ID = getUserId();
     const incomeText = document.getElementById("incomeText");
     const btn = document.getElementById("analyzeBtn");
     const statusEl = document.getElementById("status");
-    const resultEl = document.getElementById("result");
-    const aiInsightsEl = document.getElementById("aiInsights");
 
-    function fmtMoney(x) {
-      if (typeof x !== "number") return "—";
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 0
-      }).format(x);
+    function setStatus(msg) {
+      if (statusEl) statusEl.textContent = msg;
     }
 
-    function fmtNum(x) {
-      if (typeof x !== "number") return "—";
-      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(x);
-    }
+    function textToCsv(text) {
+      // one number per line -> CSV with header "amount"
+      const lines = text
+        .split("\n")
+        .map(s => s.trim())
+        .filter(Boolean);
 
-    function fillList(elId, items) {
-      const el = document.getElementById(elId);
-      if (!el) return;
-      el.innerHTML = "";
-      (items || []).forEach((t) => {
-        const li = document.createElement("li");
-        li.textContent = t;
-        el.appendChild(li);
-      });
+      // validate numeric
+      const nums = [];
+      for (const line of lines) {
+        const n = Number(line);
+        if (!Number.isFinite(n)) {
+          throw new Error(`Not a number: "${line}"`);
+        }
+        nums.push(n);
+      }
+
+      if (nums.length < 4) {
+        throw new Error("Enter at least 4 weekly income values.");
+      }
+
+      return "amount\n" + nums.join("\n") + "\n";
     }
 
     btn.addEventListener("click", async () => {
-      statusEl.textContent = "Analyzing...";
+      try {
+        setStatus("Analyzing...");
 
-      // 1) Read user_id if you have it (if not, keep empty string)
-      const userIdEl = document.getElementById("userId");
-      const user_id = userIdEl ? userIdEl.value.trim() : "";
+        const csv = textToCsv(incomeText.value);
 
-      // 2) Read typed incomes
-      const incomesEl = document.getElementById("incomesText"); // you must have this textarea id
-      const raw = (incomesEl?.value || "").trim();
+        // make a fake CSV "file" so your existing backend /analyze works unchanged
+        const blob = new Blob([csv], { type: "text/csv" });
+        const file = new File([blob], "income_weekly.csv", { type: "text/csv" });
 
-      if (!raw) {
-        statusEl.textContent = "Please enter weekly incomes first.";
-        return;
-      }
+        const formData = new FormData();
+        formData.append("file", file);
 
-      // Accept: lines OR commas
-      const amounts = raw
-        .split(/[\n,]+/)
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map(Number)
-        .filter(n => Number.isFinite(n));
-
-      if (amounts.length < 4) {
-        statusEl.textContent = "Please enter at least 4 numbers.";
-        return;
-      }
-
-      // 3) Call backend JSON endpoint
-      const resp = await fetch(API_BASE + "/analyze-json", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user_id || null, amounts })
-      });
-
-      const data = await resp.json();
-
-      if (!resp.ok) {
-        statusEl.textContent = data?.detail || "Error";
-        return;
-      }
-
-      statusEl.textContent = "Done.";
-      renderResult(data); // keep your existing render function / code
-    });
-
-
-        // Deterministic score + metrics
-        const r = data.result;
-        const m = r.metrics;
-
-        document.getElementById("score").textContent = r.volatility_score;
-        document.getElementById("band").textContent = String(r.band || "—").toUpperCase();
-
-        document.getElementById("mean").textContent = fmtMoney(m.mean_weekly_income);
-        document.getElementById("std").textContent = fmtMoney(m.std_weekly_income);
-        document.getElementById("cv").textContent = fmtNum(m.coefficient_of_variation);
-        document.getElementById("gap").textContent = fmtNum(m.gap_rate);
-        document.getElementById("dd").textContent = fmtNum(m.max_drawdown);
-
-        // AI explanation (optional)
-        const ai = data.explanation;
-
-        if (ai) {
-          aiInsightsEl.style.display = "block";
-          fillList("signalsList", ai.signals);
-          document.getElementById("explanationText").textContent = ai.explanation || "";
-          fillList("nextStepsList", ai.safe_next_steps);
-        } else {
-          aiInsightsEl.style.display = "none";
+        // optional: user_id (if you wired it)
+        const userIdEl = document.getElementById("userId");
+        if (userIdEl && userIdEl.value.trim()) {
+          formData.append("user_id", userIdEl.value.trim());
         }
 
-        // Raw response (for debugging)
-        document.getElementById("raw").textContent = JSON.stringify(data, null, 2);
+        const res = await fetch(`${API_BASE}/analyze`, {
+          method: "POST",
+          body: formData
+        });
 
-        resultEl.style.display = "block";
-        statusEl.textContent = "Done.";
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.detail || "Request failed");
+        }
+
+        // TODO: render results into your page (wherever you show score/metrics)
+        console.log("API response:", data);
+        setStatus("Done.");
+
+        // If you already have a function that renders results, call it here:
+        // renderResult(data);
+
       } catch (err) {
         console.error(err);
-        alert(`Error: ${err.message}`);
-        statusEl.textContent = "Error.";
-      } finally {
-        btn.disabled = false;
+        setStatus(err.message || "Error");
+        alert(err.message || "Error");
       }
     });
   </script>
+
 </body>
 </html>
