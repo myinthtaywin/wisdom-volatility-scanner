@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 from sqlalchemy import create_engine, text
+from pydantic import BaseModel
+from typing import List, Optional
 import pandas as pd
 import numpy as np
 from io import StringIO
@@ -275,6 +277,10 @@ def generate_explanation(llm_payload: dict) -> dict:
 # ----------------------------
 # Routes
 # ----------------------------
+class AnalyzeJSONRequest(BaseModel):
+    user_id: Optional[str] = None
+    amounts: List[float]
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -294,6 +300,33 @@ async def analyze(file: UploadFile = File(...), user_id: str = Form(None),):
 
         # Save to Postgres (if configured)
         save_analysis(result, user_id=user_id)
+
+        llm_payload = {
+            "metrics": result["metrics"],
+            "score": result["volatility_score"],
+            "band": result["band"],
+            "notes": "Explain the score using the metrics; do not invent numbers; be non-judgmental.",
+        }
+
+        explanation = generate_explanation(llm_payload)
+
+        return {"result": result, "explanation": explanation}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/analyze-json")
+def analyze_json(payload: AnalyzeJSONRequest):
+    try:
+        weekly_income = np.array(payload.amounts, dtype=float)
+
+        if len(weekly_income) < 4:
+            raise ValueError("Please provide at least 4 weekly income values.")
+
+        result = score_volatility(weekly_income)
+
+        # Save to Postgres (if configured)
+        save_analysis(result, user_id=payload.user_id)
 
         llm_payload = {
             "metrics": result["metrics"],
