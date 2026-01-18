@@ -77,6 +77,19 @@
   <script>
     const API_BASE = "";
 
+    function getUserId() {
+      const key = "wisdom_user_id";
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = (crypto.randomUUID ? crypto.randomUUID() : `u_${Date.now()}_${Math.random()}`)
+          .toString()
+          .replace(/[^a-zA-Z0-9_-]/g, "");
+        localStorage.setItem(key, id);
+      }
+      return id;
+    }
+    const USER_ID = getUserId();
+
     const fileInput = document.getElementById("file");
     const btn = document.getElementById("analyzeBtn");
     const statusEl = document.getElementById("status");
@@ -123,6 +136,7 @@
       try {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("user_id", USER_ID);
 
         const res = await fetch(`${API_BASE}/analyze`, {
           method: "POST",
