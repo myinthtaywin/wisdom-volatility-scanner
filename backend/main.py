@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -66,6 +66,7 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS analyses (
                     id SERIAL PRIMARY KEY,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    user_id TEXT,
                     n_weeks INTEGER,
                     mean_weekly_income DOUBLE PRECISION,
                     std_weekly_income DOUBLE PRECISION,
@@ -78,7 +79,7 @@ def init_db():
                 """
             )
         )
-
+        conn.execute(text("ALTER TABLE analyses ADD COLUMN IF NOT EXISTS user_id TEXT;"))
 
 @app.on_event("startup")
 def _startup():
@@ -90,7 +91,7 @@ def _startup():
         print(f"[WARN] init_db failed: {e}")
 
 
-def save_analysis(result: dict):
+def save_analysis(result: dict, user_id: str | None = None):
     """Insert analysis row (best-effort; no-op if DB not configured)."""
     if not engine:
         return
@@ -102,13 +103,14 @@ def save_analysis(result: dict):
                 text(
                     """
                     INSERT INTO analyses
-                    (n_weeks, mean_weekly_income, std_weekly_income, coefficient_of_variation,
+                    (user_id, n_weeks, mean_weekly_income, std_weekly_income, coefficient_of_variation,
                      gap_rate, max_drawdown, volatility_score, band)
                     VALUES
-                    (:n_weeks, :mean, :std, :cv, :gap, :dd, :score, :band)
+                    (:user_id, :n_weeks, :mean, :std, :cv, :gap, :dd, :score, :band)
                     """
                 ),
                 {
+                    "user_id": user_id,
                     "n_weeks": m["n_weeks"],
                     "mean": m["mean_weekly_income"],
                     "std": m["std_weekly_income"],
@@ -279,7 +281,7 @@ def health():
 
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
+async def analyze(file: UploadFile = File(...), user_id: str = Form(None),):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please upload a .csv file")
 
@@ -291,7 +293,7 @@ async def analyze(file: UploadFile = File(...)):
         result = score_volatility(weekly_income)
 
         # Save to Postgres (if configured)
-        save_analysis(result)
+        save_analysis(result, user_id=user_id)
 
         llm_payload = {
             "metrics": result["metrics"],
