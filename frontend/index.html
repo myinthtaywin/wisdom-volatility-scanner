@@ -20,12 +20,18 @@
 </head>
 <body>
   <h1>Wisdom Volatility Scanner</h1>
-  <p class="muted">Upload a weekly income CSV (must include an <code>amount</code> column).</p>
+  <p class="muted">Enter weekly incomes (one number per line). Example: 450 ↵ 620 ↵ 0 ↵ 710</p>
 
-  <div class="row">
-    <input id="file" type="file" accept=".csv" />
-    <button id="analyzeBtn">Analyze</button>
-    <span id="status" class="muted"></span>
+  <div class="row" style="align-items:flex-start;">
+    <textarea id="incomeText" rows="6" style="width:520px; padding:10px; border-radius:10px; border:1px solid #e5e7eb;"
+      placeholder="450
+  620
+  0
+  710"></textarea>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button id="analyzeBtn">Analyze</button>
+      <span id="status" class="muted"></span>
+    </div>
   </div>
 
   <div id="result" class="card" style="display:none;">
@@ -89,8 +95,7 @@
       return id;
     }
     const USER_ID = getUserId();
-
-    const fileInput = document.getElementById("file");
+    const incomeText = document.getElementById("incomeText");
     const btn = document.getElementById("analyzeBtn");
     const statusEl = document.getElementById("status");
     const resultEl = document.getElementById("result");
@@ -122,31 +127,52 @@
     }
 
     btn.addEventListener("click", async () => {
-      const file = fileInput.files?.[0];
-      if (!file) {
-        alert("Choose a CSV file first.");
+      statusEl.textContent = "Analyzing...";
+
+      // 1) Read user_id if you have it (if not, keep empty string)
+      const userIdEl = document.getElementById("userId");
+      const user_id = userIdEl ? userIdEl.value.trim() : "";
+
+      // 2) Read typed incomes
+      const incomesEl = document.getElementById("incomesText"); // you must have this textarea id
+      const raw = (incomesEl?.value || "").trim();
+
+      if (!raw) {
+        statusEl.textContent = "Please enter weekly incomes first.";
         return;
       }
 
-      btn.disabled = true;
-      statusEl.textContent = "Analyzing...";
-      resultEl.style.display = "none";
-      aiInsightsEl.style.display = "none";
+      // Accept: lines OR commas
+      const amounts = raw
+        .split(/[\n,]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(Number)
+        .filter(n => Number.isFinite(n));
 
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("user_id", USER_ID);
+      if (amounts.length < 4) {
+        statusEl.textContent = "Please enter at least 4 numbers.";
+        return;
+      }
 
-        const res = await fetch(`${API_BASE}/analyze`, {
-          method: "POST",
-          body: formData
-        });
+      // 3) Call backend JSON endpoint
+      const resp = await fetch(API_BASE + "/analyze-json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user_id || null, amounts })
+      });
 
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.detail || "Request failed");
-        }
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        statusEl.textContent = data?.detail || "Error";
+        return;
+      }
+
+      statusEl.textContent = "Done.";
+      renderResult(data); // keep your existing render function / code
+    });
+
 
         // Deterministic score + metrics
         const r = data.result;
