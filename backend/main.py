@@ -533,7 +533,13 @@ def get_spend_benchmark(frequency: str, bins: int = 20) -> dict:
     values = [float(r[0]) for r in rows if r[0] is not None]
     n = len(values)
     if n == 0:
-        return {"median": None, "bins": [], "counts": [], "n": 0}
+        edges = np.linspace(0, 100, 21)  # 20 bins => 21 edges
+        return {
+            "median": None,
+            "bin_edges": [round(float(x), 2) for x in edges.tolist()],
+            "counts": [0] * 20,
+            "n": 0,
+        }
 
     values_np = np.array(values, dtype=float)
     median = float(np.median(values_np))

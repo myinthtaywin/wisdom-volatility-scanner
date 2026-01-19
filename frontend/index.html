@@ -11,12 +11,9 @@
       --card: rgba(255,255,255,0.06);
       --card2: rgba(255,255,255,0.08);
       --text: rgba(255,255,255,0.92);
-      --muted: rgba(255,255,255,255,0.65);
+      --muted: rgba(255,255,255,0.65);
       --line: rgba(255,255,255,0.14);
       --accent: rgba(99,102,241,0.8);
-      --good: #6ee7b7;
-      --warn: #fbbf24;
-      --bad: #f87171;
     }
 
     * { box-sizing: border-box; }
@@ -41,7 +38,7 @@
     }
 
     .sub {
-      color: rgba(255,255,255,0.7);
+      color: var(--muted);
       margin-bottom: 12px;
       max-width: 720px;
     }
@@ -58,7 +55,7 @@
       padding: 6px 12px;
       border-radius: 999px;
       font-size: 13px;
-      color: rgba(255,255,255,0.7);
+      color: var(--muted);
       background: rgba(255,255,255,0.04);
     }
 
@@ -83,7 +80,7 @@
     h2 {
       font-size: 14px;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.6);
+      color: var(--muted);
       margin: 0 0 10px 0;
       letter-spacing: 0.04em;
     }
@@ -117,7 +114,7 @@
 
     .field label {
       font-size: 12px;
-      color: rgba(255,255,255,0.6);
+      color: var(--muted);
       margin-bottom: 6px;
       display: block;
     }
@@ -161,7 +158,7 @@
     }
 
     .aiInsight {
-      color: rgba(255,255,255,0.8);
+      color: rgba(255,255,255,0.85);
       font-size: 15px;
       margin-bottom: 14px;
     }
@@ -170,6 +167,7 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 12px;
+      margin-bottom: 14px;
     }
 
     .metric {
@@ -181,7 +179,7 @@
 
     .metric .k {
       font-size: 12px;
-      color: rgba(255,255,255,0.6);
+      color: var(--muted);
     }
 
     .metric .v {
@@ -190,7 +188,7 @@
       margin-top: 4px;
     }
 
-    .pctWrap { margin-top: 14px; }
+    .pctWrap { margin-top: 8px; }
     .pctBar {
       height: 14px;
       border-radius: 999px;
@@ -219,14 +217,68 @@
       display: flex;
       justify-content: space-between;
       font-size: 11px;
-      color: rgba(255,255,255,0.6);
+      color: var(--muted);
       margin-top: 6px;
+    }
+
+    .distHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 14px 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #hist {
+      display: flex;
+      gap: 6px;
+      align-items: flex-end;
+      height: 120px;
+    }
+
+    .shareBox {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .shareTop {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+      gap:10px;
+    }
+
+    .shareLabel {
+      font-size: 13px;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .copyBtn {
+      background: rgba(255,255,255,0.12);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+
+    #shareInsightText {
+      font-size: 14px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.95);
+      white-space: pre-wrap;
     }
 
     .footer {
       font-size: 12px;
-      color: rgba(255,255,255,0.6);
-      margin-top: 16px;
+      color: var(--muted);
+      margin-top: 14px;
     }
   </style>
 </head>
@@ -275,7 +327,7 @@
         <div class="metrics">
           <div class="metric"><div class="k">Average spend</div><div class="v" id="avgVal">—</div></div>
           <div class="metric"><div class="k">Volatility</div><div class="v" id="stdVal">—</div></div>
-          <div class="metric"><div class="k">Percentile</div><div class="v" id="pctVal">Soon</div></div>
+          <div class="metric"><div class="k">Percentile</div><div class="v" id="pctVal">—</div></div>
         </div>
 
         <div class="pctWrap">
@@ -286,52 +338,20 @@
           <div class="pctTicks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
         </div>
 
-        <div class="pctWrap" style="margin-top:14px;">
-          <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
-            <div style="font-size:12px; color: rgba(255,255,255,0.65);">
-              Distribution (users like you)
-            </div>
+        <div class="distHeader">
+          <div>Distribution (users like you)</div>
+          <div id="medianText">Median: —</div>
+        </div>
 
-            <div style="font-size:12px; color: rgba(255,255,255,0.65);" id="medianText">
-              Median: —
-            </div>
+        <div id="hist"></div>
+
+        <!-- SHAREABLE STATUS -->
+        <div class="shareBox">
+          <div class="shareTop">
+            <div class="shareLabel">AI insight (shareable)</div>
+            <button class="copyBtn" id="copyInsightBtn">Copy</button>
           </div>
-
-          <div style="display:flex; justify-content:space-between; ...">
-            <div style="font-size:12px; ...">
-              Distribution (users like you)
-            </div>
-
-            <div style="font-size:12px; ...;" id="medianText">
-              Median: —
-            </div>
-          </div>
-
-          <div id="hist"
-               style="display:flex; gap:6px; align-items:flex-end; height:120px;">
-          </div>
-
-          <!-- ✅ PUT AI INSIGHT SHARE BOX HERE -->
-          <div class="shareBox" style="margin-top:16px; padding:14px; border-radius:12px; background:rgba(255,255,255,0.06);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <div style="font-size:13px; color:rgba(255,255,255,0.8);">
-                AI insight (shareable)
-              </div>
-              <button id="copyInsightBtn"
-                style="background:rgba(255,255,255,0.12); color:white; border:none; border-radius:8px; padding:6px 10px; cursor:pointer;">
-                Copy
-              </button>
-            </div>
-
-            <div id="shareInsightText"
-                 style="font-size:14px; line-height:1.4; color:rgba(255,255,255,0.95);">
-              —
-            </div>
-          </div>
-
-          <div style="display:flex; justify-content:space-between; color: rgba(255,255,255,0.55); font-size:11px; margin-top:6px;">
-            <span>0%</span><span>100%</span>
-          </div>
+          <div id="shareInsightText">—</div>
         </div>
 
         <div class="footer">
@@ -358,7 +378,7 @@
     labelsFor(frequency).forEach(l => {
       const d = document.createElement("div");
       d.className = "field";
-      d.innerHTML = `<label>${l}</label><input type="number" min="0" max="100">`;
+      d.innerHTML = `<label>${l}</label><input type="number" min="0" max="100" placeholder="0–100">`;
       inputsEl.appendChild(d);
     });
   }
@@ -373,7 +393,11 @@
   });
 
   function mean(a){return a.reduce((x,y)=>x+y,0)/a.length;}
-  function std(a){const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));}
+  function std(a){
+    const m=mean(a);
+    if(a.length < 2) return 0;
+    return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));
+  }
 
   function titleFor(avg){
     if(avg<40) return "🧊 Zen Saver";
@@ -383,10 +407,10 @@
     return "🚀 Big Energy Spender";
   }
 
-  function insightFor(avg,std,pct){
-    const vol = std<8?"steady hands":std<18?"a little bouncy":"chaotic but brave";
+  function insightFor(avg,stdev,pct){
+    const vol = stdev<8 ? "steady hands" : stdev<18 ? "a little bouncy" : "chaotic but brave";
     return pct==null
-      ? `You're running ${vol}. Percentile unlocks when crowd data is seeded.`
+      ? `You're running ${vol}.`
       : `You're running ${vol} and spending more than ${pct}% of users.`;
   }
 
@@ -412,8 +436,6 @@
 
     const maxC = Math.max(...counts, 1);
     const binCount = counts.length;
-
-    // Map avg (0..100) to bin index
     const idx = Math.min(binCount - 1, Math.max(0, Math.floor((yourAvgPct / 100) * binCount)));
 
     counts.forEach((c, i) => {
@@ -432,6 +454,7 @@
   document.getElementById("analyzeBtn").onclick = async () => {
     const values = [...document.querySelectorAll("#inputs input")].map(i => Number(i.value));
     if (values.length !== 7 || values.some(v => isNaN(v))) return alert("Fill all 7 boxes.");
+    if (values.some(v => v < 0 || v > 100)) return alert("Use 0–100 only.");
 
     const avgNum = mean(values);
     const sNum = std(values);
@@ -466,26 +489,41 @@
       document.getElementById("pctMarker").style.left = pct + "%";
       document.getElementById("pctMarker").style.display = "block";
     } else {
-      // optional: reset bar if no percentile
       document.getElementById("pctFill").style.width = "0%";
       document.getElementById("pctMarker").style.display = "none";
     }
 
     document.getElementById("resultCard").style.display = "block";
 
-    // Fetch distribution + median and render histogram
+    // Distribution + median
     try {
       const bench = await fetchBenchmark(frequency);
       document.getElementById("medianText").innerText =
         bench.median == null ? "Median: —" : `Median: ${bench.median}% (n=${bench.n})`;
-
       renderHistogram(bench.counts, avgNum);
     } catch (e) {
       document.getElementById("medianText").innerText = "Median: —";
       renderHistogram([], avgNum);
     }
-  };
 
+    // Shareable status text
+    const shareText =
+      `${document.getElementById("coolTitle").innerText}\n` +
+      `${avg}% avg spend · ${pct == null ? "—" : pct + "%"} percentile\n` +
+      `Volatility: ${s}%\n\n` +
+      `${document.getElementById("aiInsight").innerText}\n\n` +
+      `Try yours 👉 https://wisdom-volatility-scanner.onrender.com/`;
+
+    document.getElementById("shareInsightText").innerText = shareText;
+
+    document.getElementById("copyInsightBtn").onclick = async () => {
+      await navigator.clipboard.writeText(shareText);
+      const btn = document.getElementById("copyInsightBtn");
+      const old = btn.innerText;
+      btn.innerText = "Copied ✓";
+      setTimeout(() => (btn.innerText = old), 1200);
+    };
+  };
 
   renderInputs();
 </script>
