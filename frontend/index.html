@@ -418,6 +418,7 @@
       if (r.ok) {
         const j = await r.json();
         pct = j.result.percentile_rank;
+        pct = (pct == null) ? null : Number(pct);
       }
     } catch {}
 
@@ -427,7 +428,7 @@
 
     document.getElementById("avgVal").innerText = `${avg}%`;
     document.getElementById("stdVal").innerText = `${s}%`;
-    document.getElementById("pctVal").innerText = pct == null ? "Soon" : `${pct}%`;
+    document.getElementById("pctVal").innerText = pct == null ? "—" : `${pct}%`;
 
     if (pct != null) {
       document.getElementById("pctFill").style.width = pct + "%";
