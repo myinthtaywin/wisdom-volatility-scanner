@@ -3,161 +3,460 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Wisdom Volatility Scanner</title>
+  <title>Spend Benchmark — just for fun</title>
+
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 32px; max-width: 900px; }
-    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-top: 16px; }
-    .score { font-size: 48px; font-weight: 800; margin: 0; }
-    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #e5e7eb; font-size: 14px; }
-    pre { background: #0b1020; color: #e5e7eb; padding: 12px; border-radius: 10px; overflow: auto; }
-    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; cursor: pointer; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .muted { color: #6b7280; }
-    .section-title { font-weight: 700; margin: 0 0 6px 0; }
-    .subtle { color: #6b7280; font-size: 14px; margin: 0 0 6px 0; }
+    :root {
+      --bg: #0b1020;
+      --card: rgba(255,255,255,0.06);
+      --card2: rgba(255,255,255,0.08);
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,255,0.65);
+      --line: rgba(255,255,255,0.14);
+      --accent: rgba(99,102,241,0.8);
+      --good: #6ee7b7;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background:
+        radial-gradient(1200px 700px at 10% 10%, rgba(99,102,241,0.25), transparent 55%),
+        radial-gradient(1200px 700px at 90% 30%, rgba(16,185,129,0.18), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      padding: 28px;
+    }
+
+    .wrap { max-width: 1040px; margin: 0 auto; }
+
+    h1 {
+      font-size: 34px;
+      margin: 0 0 8px 0;
+      letter-spacing: -0.02em;
+    }
+
+    .sub {
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 12px;
+      max-width: 720px;
+    }
+
+    .pillrow {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      margin: 0 0 10px 0;
+      letter-spacing: 0.04em;
+    }
+
+    .freq button {
+      width: 100%;
+      text-align: left;
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .freq button.active {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.18);
+    }
+
+    .inputs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 700px) {
+      .inputs { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .field label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.3);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .btn {
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--accent);
+      background: rgba(99,102,241,0.25);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .result {
+      margin-top: 16px;
+      display: none;
+      background: var(--card2);
+    }
+
+    .coolTitle {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .headline {
+      font-size: 36px;
+      font-weight: 900;
+      margin: 6px 0;
+    }
+
+    .aiInsight {
+      color: rgba(255,255,255,0.8);
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(0,0,0,0.25);
+    }
+
+    .metric .k {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+    }
+
+    .metric .v {
+      font-size: 20px;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+
+    .pctWrap { margin-top: 14px; }
+    .pctBar {
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.3);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .pctFill {
+      height: 100%;
+      width: 0%;
+      background: rgba(99,102,241,0.7);
+    }
+
+    .pctMarker {
+      position: absolute;
+      top: -6px;
+      width: 2px;
+      height: 26px;
+      background: white;
+      display: none;
+    }
+
+    .pctTicks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 6px;
+    }
+
+    .footer {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 16px;
+    }
   </style>
 </head>
+
 <body>
-  <h1>Wisdom Volatility Scanner</h1>
-  <p class="muted">Enter weekly incomes (one number per line). Example: 450 ↵ 620 ↵ 0 ↵ 710</p>
+<div class="wrap">
 
-  <div class="row" style="align-items:flex-start;">
-    <textarea id="incomeText" rows="6" style="width:520px; padding:10px; border-radius:10px; border:1px solid #e5e7eb;"
-      placeholder="450
-  620
-  0
-  710"></textarea>
-    <div style="display:flex; flex-direction:column; gap:10px;">
-      <button id="analyzeBtn">Analyze</button>
-      <span id="status" class="muted"></span>
-    </div>
+  <h1>Are you a calm spender… or a chaotic one?</h1>
+  <p class="sub">
+    Enter your spend as <b>% of income</b> for the last 7 periods.
+    No income. No receipts. Anonymous. Just for fun.
+  </p>
+
+  <div class="pillrow">
+    <span class="pill">No income</span>
+    <span class="pill">No receipts</span>
+    <span class="pill">Anonymous</span>
+    <span class="pill">Just for fun</span>
   </div>
 
-  <div id="result" class="card" style="display:none;">
-    <div class="row" style="justify-content: space-between;">
-      <div>
-        <p class="muted" style="margin:0;">Volatility score</p>
-        <p class="score" id="score">—</p>
-        <span class="pill" id="band">—</span>
-      </div>
+  <div class="grid">
 
-      <div style="min-width: 280px;">
-        <p class="muted" style="margin:0 0 6px 0;">Key metrics</p>
-        <ul style="margin:0; padding-left: 18px;">
-          <li><span class="muted">Mean:</span> <span id="mean">—</span></li>
-          <li><span class="muted">Std:</span> <span id="std">—</span></li>
-          <li><span class="muted">CV:</span> <span id="cv">—</span></li>
-          <li><span class="muted">Gap rate:</span> <span id="gap">—</span></li>
-          <li><span class="muted">Max drawdown:</span> <span id="dd">—</span></li>
-        </ul>
+    <!-- LEFT -->
+    <div class="card">
+      <h2>Choose cadence</h2>
+      <div class="freq">
+        <button class="active" data-freq="daily">Daily</button>
+        <button data-freq="weekly">Weekly</button>
+        <button data-freq="monthly">Monthly</button>
       </div>
     </div>
 
-    <!-- AI Insights -->
-    <div id="aiInsights" style="margin-top:16px; display:none;">
-      <p class="section-title">AI insights</p>
+    <!-- RIGHT -->
+    <div class="card">
+      <h2>Your last 7 periods</h2>
 
-      <div style="display:flex; gap:24px; flex-wrap:wrap;">
-        <div style="min-width: 240px;">
-          <p class="subtle">Signals</p>
-          <ul id="signalsList" style="margin:0; padding-left: 18px;"></ul>
+      <div class="inputs" id="inputs"></div>
+
+      <button class="btn" id="analyzeBtn" style="margin-top:14px;">Analyze</button>
+
+      <div class="card result" id="resultCard">
+        <div class="coolTitle" id="coolTitle">—</div>
+        <div class="headline" id="headline">—</div>
+        <div class="aiInsight" id="aiInsight">—</div>
+
+        <div class="metrics">
+          <div class="metric"><div class="k">Average spend</div><div class="v" id="avgVal">—</div></div>
+          <div class="metric"><div class="k">Volatility</div><div class="v" id="stdVal">—</div></div>
+          <div class="metric"><div class="k">Percentile</div><div class="v" id="pctVal">Soon</div></div>
         </div>
 
-        <div style="flex:1; min-width: 280px;">
-          <p class="subtle">Explanation</p>
-          <p id="explanationText" style="margin:0; line-height:1.45;"></p>
+        <div class="pctWrap">
+          <div class="pctBar">
+            <div class="pctFill" id="pctFill"></div>
+            <div class="pctMarker" id="pctMarker"></div>
+          </div>
+          <div class="pctTicks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        </div>
 
-          <p class="subtle" style="margin-top: 14px;">Safe next steps</p>
-          <ul id="nextStepsList" style="margin:0; padding-left: 18px;"></ul>
+        <div class="pctWrap" style="margin-top:14px;">
+          <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+            <div style="font-size:12px; color: rgba(255,255,255,0.65);">
+              Distribution (users like you)
+            </div>
+            <div style="font-size:12px; color: rgba(255,255,255,0.65);" id="medianText">
+              Median: —
+            </div>
+          </div>
+
+          <div id="hist" style="display:flex; gap:6px; align-items:flex-end; height:120px;"></div>
+
+          <div style="display:flex; justify-content:space-between; color: rgba(255,255,255,0.55); font-size:11px; margin-top:6px;">
+            <span>0%</span><span>100%</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          Percentile compares you to users of this tool (not the general population).
         </div>
       </div>
-    </div>
 
-    <details style="margin-top: 12px;">
-      <summary>Raw JSON</summary>
-      <pre id="raw"></pre>
-    </details>
+    </div>
   </div>
+</div>
 
-  <script>
-    const API_BASE = ""; // same-origin on Render
+<script>
+  let frequency = "daily";
+  const inputsEl = document.getElementById("inputs");
 
-    const incomeText = document.getElementById("incomeText");
-    const btn = document.getElementById("analyzeBtn");
-    const statusEl = document.getElementById("status");
+  function labelsFor(freq) {
+    if (freq === "daily") return ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    if (freq === "weekly") return ["Wk1","Wk2","Wk3","Wk4","Wk5","Wk6","Wk7"];
+    return ["M1","M2","M3","M4","M5","M6","M7"];
+  }
 
-    function setStatus(msg) {
-      if (statusEl) statusEl.textContent = msg;
-    }
-
-    function textToCsv(text) {
-      // one number per line -> CSV with header "amount"
-      const lines = text
-        .split("\n")
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      // validate numeric
-      const nums = [];
-      for (const line of lines) {
-        const n = Number(line);
-        if (!Number.isFinite(n)) {
-          throw new Error(`Not a number: "${line}"`);
-        }
-        nums.push(n);
-      }
-
-      if (nums.length < 4) {
-        throw new Error("Enter at least 4 weekly income values.");
-      }
-
-      return "amount\n" + nums.join("\n") + "\n";
-    }
-
-    btn.addEventListener("click", async () => {
-      try {
-        setStatus("Analyzing...");
-
-        const csv = textToCsv(incomeText.value);
-
-        // make a fake CSV "file" so your existing backend /analyze works unchanged
-        const blob = new Blob([csv], { type: "text/csv" });
-        const file = new File([blob], "income_weekly.csv", { type: "text/csv" });
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        // optional: user_id (if you wired it)
-        const userIdEl = document.getElementById("userId");
-        if (userIdEl && userIdEl.value.trim()) {
-          formData.append("user_id", userIdEl.value.trim());
-        }
-
-        const res = await fetch(`${API_BASE}/analyze`, {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.detail || "Request failed");
-        }
-
-        // TODO: render results into your page (wherever you show score/metrics)
-        console.log("API response:", data);
-        setStatus("Done.");
-
-        // If you already have a function that renders results, call it here:
-        // renderResult(data);
-
-      } catch (err) {
-        console.error(err);
-        setStatus(err.message || "Error");
-        alert(err.message || "Error");
-      }
+  function renderInputs() {
+    inputsEl.innerHTML = "";
+    labelsFor(frequency).forEach(l => {
+      const d = document.createElement("div");
+      d.className = "field";
+      d.innerHTML = `<label>${l}</label><input type="number" min="0" max="100">`;
+      inputsEl.appendChild(d);
     });
-  </script>
+  }
+
+  document.querySelectorAll(".freq button").forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll(".freq button").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active");
+      frequency = b.dataset.freq;
+      renderInputs();
+    };
+  });
+
+  function mean(a){return a.reduce((x,y)=>x+y,0)/a.length;}
+  function std(a){const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));}
+
+  function titleFor(avg){
+    if(avg<40) return "🧊 Zen Saver";
+    if(avg<55) return "🌿 Chill Budgeter";
+    if(avg<70) return "🙂 Balanced Operator";
+    if(avg<85) return "🔥 Spend Ninja";
+    return "🚀 Big Energy Spender";
+  }
+
+  function insightFor(avg,std,pct){
+    const vol = std<8?"steady hands":std<18?"a little bouncy":"chaotic but brave";
+    return pct==null
+      ? `You're running ${vol}. Percentile unlocks when crowd data is seeded.`
+      : `You're running ${vol} and spending more than ${pct}% of users.`;
+  }
+
+  async function fetchBenchmark(freq){
+    const r = await fetch("/spend/benchmark", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ frequency: freq })
+    });
+    if(!r.ok) throw new Error("benchmark fetch failed");
+    const j = await r.json();
+    return j.result;
+  }
+
+  function renderHistogram(counts, yourAvgPct){
+    const hist = document.getElementById("hist");
+    hist.innerHTML = "";
+
+    if(!counts || counts.length === 0){
+      hist.innerHTML = `<div style="color: rgba(255,255,255,0.65); font-size:12px;">No crowd data yet.</div>`;
+      return;
+    }
+
+    const maxC = Math.max(...counts, 1);
+    const binCount = counts.length;
+
+    // Map avg (0..100) to bin index
+    const idx = Math.min(binCount - 1, Math.max(0, Math.floor((yourAvgPct / 100) * binCount)));
+
+    counts.forEach((c, i) => {
+      const bar = document.createElement("div");
+      const h = Math.round((c / maxC) * 110) + 6;
+      bar.style.height = `${h}px`;
+      bar.style.width = "14px";
+      bar.style.borderRadius = "6px";
+      bar.style.border = "1px solid rgba(255,255,255,0.14)";
+      bar.style.background = (i === idx) ? "rgba(248,113,113,0.65)" : "rgba(255,255,255,0.10)";
+      bar.title = (i === idx) ? "You" : `${c} users`;
+      hist.appendChild(bar);
+    });
+  }
+
+  document.getElementById("analyzeBtn").onclick = async () => {
+    const values = [...document.querySelectorAll("#inputs input")].map(i => Number(i.value));
+    if (values.length !== 7 || values.some(v => isNaN(v))) return alert("Fill all 7 boxes.");
+
+    const avgNum = mean(values);
+    const sNum = std(values);
+
+    const avg = avgNum.toFixed(2);
+    const s = sNum.toFixed(2);
+
+    let pct = null;
+    try {
+      const r = await fetch("/spend/analyze", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ frequency, values })
+      });
+      if (r.ok) {
+        const j = await r.json();
+        pct = j.result.percentile_rank;
+      }
+    } catch {}
+
+    document.getElementById("coolTitle").innerText = titleFor(avgNum);
+    document.getElementById("headline").innerText = `${avg}% avg spend`;
+    document.getElementById("aiInsight").innerText = insightFor(avgNum, sNum, pct);
+
+    document.getElementById("avgVal").innerText = `${avg}%`;
+    document.getElementById("stdVal").innerText = `${s}%`;
+    document.getElementById("pctVal").innerText = pct == null ? "Soon" : `${pct}%`;
+
+    if (pct != null) {
+      document.getElementById("pctFill").style.width = pct + "%";
+      document.getElementById("pctMarker").style.left = pct + "%";
+      document.getElementById("pctMarker").style.display = "block";
+    } else {
+      // optional: reset bar if no percentile
+      document.getElementById("pctFill").style.width = "0%";
+      document.getElementById("pctMarker").style.display = "none";
+    }
+
+    document.getElementById("resultCard").style.display = "block";
+
+    // Fetch distribution + median and render histogram
+    try {
+      const bench = await fetchBenchmark(frequency);
+      document.getElementById("medianText").innerText =
+        bench.median == null ? "Median: —" : `Median: ${bench.median}% (n=${bench.n})`;
+
+      renderHistogram(bench.counts, avgNum);
+    } catch (e) {
+      document.getElementById("medianText").innerText = "Median: —";
+      renderHistogram([], avgNum);
+    }
+  };
+
+
+  renderInputs();
+</script>
 
 </body>
 </html>
