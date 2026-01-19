@@ -291,12 +291,43 @@
             <div style="font-size:12px; color: rgba(255,255,255,0.65);">
               Distribution (users like you)
             </div>
+
             <div style="font-size:12px; color: rgba(255,255,255,0.65);" id="medianText">
               Median: —
             </div>
           </div>
 
-          <div id="hist" style="display:flex; gap:6px; align-items:flex-end; height:120px;"></div>
+          <div style="display:flex; justify-content:space-between; ...">
+            <div style="font-size:12px; ...">
+              Distribution (users like you)
+            </div>
+
+            <div style="font-size:12px; ...;" id="medianText">
+              Median: —
+            </div>
+          </div>
+
+          <div id="hist"
+               style="display:flex; gap:6px; align-items:flex-end; height:120px;">
+          </div>
+
+          <!-- ✅ PUT AI INSIGHT SHARE BOX HERE -->
+          <div class="shareBox" style="margin-top:16px; padding:14px; border-radius:12px; background:rgba(255,255,255,0.06);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div style="font-size:13px; color:rgba(255,255,255,0.8);">
+                AI insight (shareable)
+              </div>
+              <button id="copyInsightBtn"
+                style="background:rgba(255,255,255,0.12); color:white; border:none; border-radius:8px; padding:6px 10px; cursor:pointer;">
+                Copy
+              </button>
+            </div>
+
+            <div id="shareInsightText"
+                 style="font-size:14px; line-height:1.4; color:rgba(255,255,255,0.95);">
+              —
+            </div>
+          </div>
 
           <div style="display:flex; justify-content:space-between; color: rgba(255,255,255,0.55); font-size:11px; margin-top:6px;">
             <span>0%</span><span>100%</span>
