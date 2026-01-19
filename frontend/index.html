@@ -189,6 +189,7 @@
     }
 
     .pctWrap { margin-top: 8px; }
+
     .pctBar {
       height: 14px;
       border-radius: 999px;
@@ -202,6 +203,7 @@
       height: 100%;
       width: 0%;
       background: rgba(99,102,241,0.7);
+      transition: width 180ms ease;
     }
 
     .pctMarker {
@@ -211,6 +213,7 @@
       height: 26px;
       background: white;
       display: none;
+      transform: translateX(-1px);
     }
 
     .pctTicks {
@@ -236,6 +239,7 @@
       gap: 6px;
       align-items: flex-end;
       height: 120px;
+      overflow: hidden;
     }
 
     .shareBox {
@@ -266,6 +270,7 @@
       border-radius: 10px;
       padding: 7px 12px;
       cursor: pointer;
+      font-weight: 700;
     }
 
     #shareInsightText {
@@ -273,6 +278,7 @@
       line-height: 1.4;
       color: rgba(255,255,255,0.95);
       white-space: pre-wrap;
+      min-height: 40px;
     }
 
     .footer {
@@ -351,7 +357,7 @@
             <div class="shareLabel">AI insight (shareable)</div>
             <button class="copyBtn" id="copyInsightBtn">Copy</button>
           </div>
-          <div id="shareInsightText">—</div>
+          <div id="shareInsightText">Run Analyze to generate a shareable status.</div>
         </div>
 
         <div class="footer">
@@ -365,6 +371,7 @@
 
 <script>
   let frequency = "daily";
+  let lastShareText = "";
   const inputsEl = document.getElementById("inputs");
 
   function labelsFor(freq) {
@@ -392,26 +399,26 @@
     };
   });
 
-  function mean(a){return a.reduce((x,y)=>x+y,0)/a.length;}
+  function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
+
   function std(a){
-    const m=mean(a);
+    const m = mean(a);
     if(a.length < 2) return 0;
     return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));
   }
 
   function titleFor(avg){
-    if(avg<40) return "🧊 Zen Saver";
-    if(avg<55) return "🌿 Chill Budgeter";
-    if(avg<70) return "🙂 Balanced Operator";
-    if(avg<85) return "🔥 Spend Ninja";
+    if(avg < 40) return "🧊 Zen Saver";
+    if(avg < 55) return "🌿 Chill Budgeter";
+    if(avg < 70) return "🙂 Balanced Operator";
+    if(avg < 85) return "🔥 Spend Ninja";
     return "🚀 Big Energy Spender";
   }
 
   function insightFor(avg,stdev,pct){
-    const vol = stdev<8 ? "steady hands" : stdev<18 ? "a little bouncy" : "chaotic but brave";
-    return pct==null
-      ? `You're running ${vol}.`
-      : `You're running ${vol} and spending more than ${pct}% of users.`;
+    const vol = stdev < 8 ? "steady hands" : stdev < 18 ? "a little bouncy" : "chaotic but brave";
+    if (pct == null) return `You're running ${vol}.`;
+    return `You're running ${vol} and spending more than ${pct}% of users.`;
   }
 
   async function fetchBenchmark(freq){
@@ -453,8 +460,13 @@
 
   document.getElementById("analyzeBtn").onclick = async () => {
     const values = [...document.querySelectorAll("#inputs input")].map(i => Number(i.value));
-    if (values.length !== 7 || values.some(v => isNaN(v))) return alert("Fill all 7 boxes.");
-    if (values.some(v => v < 0 || v > 100)) return alert("Use 0–100 only.");
+
+    if (values.length !== 7 || values.some(v => Number.isNaN(v))) {
+      return alert("Fill all 7 boxes.");
+    }
+    if (values.some(v => v < 0 || v > 100)) {
+      return alert("Use 0–100 only.");
+    }
 
     const avgNum = mean(values);
     const sNum = std(values);
@@ -463,6 +475,7 @@
     const s = sNum.toFixed(2);
 
     let pct = null;
+
     try {
       const r = await fetch("/spend/analyze", {
         method: "POST",
@@ -474,7 +487,9 @@
         pct = j.result.percentile_rank;
         pct = (pct == null) ? null : Number(pct);
       }
-    } catch {}
+    } catch {
+      pct = null;
+    }
 
     document.getElementById("coolTitle").innerText = titleFor(avgNum);
     document.getElementById("headline").innerText = `${avg}% avg spend`;
@@ -495,7 +510,7 @@
 
     document.getElementById("resultCard").style.display = "block";
 
-    // Distribution + median
+    // Benchmark + histogram
     try {
       const bench = await fetchBenchmark(frequency);
       document.getElementById("medianText").innerText =
@@ -506,23 +521,25 @@
       renderHistogram([], avgNum);
     }
 
-    // Shareable status text
-    const shareText =
+    // Build share text (single source of truth)
+    lastShareText =
       `${document.getElementById("coolTitle").innerText}\n` +
       `${avg}% avg spend · ${pct == null ? "—" : pct + "%"} percentile\n` +
       `Volatility: ${s}%\n\n` +
       `${document.getElementById("aiInsight").innerText}\n\n` +
       `Try yours 👉 https://wisdom-volatility-scanner.onrender.com/`;
 
-    document.getElementById("shareInsightText").innerText = shareText;
+    document.getElementById("shareInsightText").innerText = lastShareText;
+  };
 
-    document.getElementById("copyInsightBtn").onclick = async () => {
-      await navigator.clipboard.writeText(shareText);
-      const btn = document.getElementById("copyInsightBtn");
-      const old = btn.innerText;
-      btn.innerText = "Copied ✓";
-      setTimeout(() => (btn.innerText = old), 1200);
-    };
+  // Copy handler ONCE
+  document.getElementById("copyInsightBtn").onclick = async () => {
+    if (!lastShareText) return;
+    await navigator.clipboard.writeText(lastShareText);
+    const btn = document.getElementById("copyInsightBtn");
+    const old = btn.innerText;
+    btn.innerText = "Copied ✓";
+    setTimeout(() => (btn.innerText = old), 1200);
   };
 
   renderInputs();
