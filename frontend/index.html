@@ -459,6 +459,10 @@
   }
 
   document.getElementById("analyzeBtn").onclick = async () => {
+
+    // RESET share text for this run
+    lastShareText = "";
+
     const values = [...document.querySelectorAll("#inputs input")].map(i => Number(i.value));
 
     if (values.length !== 7 || values.some(v => Number.isNaN(v))) {
@@ -511,8 +515,9 @@
     document.getElementById("resultCard").style.display = "block";
 
     // Benchmark + histogram
+    let bench = null;
     try {
-      const bench = await fetchBenchmark(frequency);
+      bench = await fetchBenchmark(frequency);
       document.getElementById("medianText").innerText =
         bench.median == null ? "Median: —" : `Median: ${bench.median}% (n=${bench.n})`;
       renderHistogram(bench.counts, avgNum);
@@ -521,15 +526,55 @@
       renderHistogram([], avgNum);
     }
 
-    // Build share text (single source of truth)
-    lastShareText =
-      `${document.getElementById("coolTitle").innerText}\n` +
-      `${avg}% avg spend · ${pct == null ? "—" : pct + "%"} percentile\n` +
-      `Volatility: ${s}%\n\n` +
-      `${document.getElementById("aiInsight").innerText}\n\n` +
-      `Try yours 👉 https://wisdom-volatility-scanner.onrender.com/`;
+    // Coach Agent (uses results + benchmark median)
+    try {
+      const coachRes = await fetch("/agent/coach", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          frequency: frequency,
+          values: values,
+          avg_spend_pct: Number(avg),         // or avgNum
+          std_spend_pct: Number(s),           // or sNum
+          percentile_rank: pct,
+          median: bench?.median ?? null,
+          goal: "save more this month"
+        })
+      });
 
-    document.getElementById("shareInsightText").innerText = lastShareText;
+      if (coachRes.ok) {
+        const coach = await coachRes.json();
+
+        // 1) Update the short insight line on the card
+        document.getElementById("aiInsight").innerText = coach.diagnosis;
+
+        // 2) Update the share box (coach is source of truth)
+        const coachText =
+          `${coach.title}\n\n` +
+          `${coach.diagnosis}\n\n` +
+          `Try this:\n${coach.experiment}\n\n` +
+          `Watch out:\n${coach.watchout}\n\n` +
+          `${coach.disclaimer}\n\n` +
+          `Try yours 👉 https://wisdom-volatility-scanner.onrender.com/`;
+
+        lastShareText = coachText;
+        document.getElementById("shareInsightText").innerText = lastShareText;
+      }
+    } catch (e) {
+      console.warn("Coach agent failed", e);
+    }
+
+    // Build share text (fallback only — if coach failed)
+    if (!lastShareText) {
+      lastShareText =
+        `${document.getElementById("coolTitle").innerText}\n` +
+        `${avg}% avg spend · ${pct == null ? "—" : pct + "%"} percentile\n` +
+        `Volatility: ${s}%\n\n` +
+        `${document.getElementById("aiInsight").innerText}\n\n` +
+        `Try yours 👉 https://wisdom-volatility-scanner.onrender.com/`;
+
+      document.getElementById("shareInsightText").innerText = lastShareText;
+    }
   };
 
   // Copy handler ONCE
