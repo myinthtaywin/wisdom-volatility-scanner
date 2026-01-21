@@ -362,11 +362,12 @@ def generate_explanation(llm_payload: dict) -> dict:
             "safe_next_steps": ["Try again later or verify API key."],
         }
 
-
+# ----------------------------
+# Analyze request models + endpoints
+# ----------------------------
 class AnalyzeJSONRequest(BaseModel):
     user_id: Optional[str] = None
     amounts: List[float]
-
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...), user_id: str = Form(None)):
@@ -411,6 +412,139 @@ def analyze_json(payload: AnalyzeJSONRequest):
         return {"result": result, "explanation": explanation}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ----------------------------
+# Coach Agent (NEW)
+# ----------------------------
+class CoachRequest(BaseModel):
+    frequency: str
+    values: List[float]
+    avg_spend_pct: float
+    std_spend_pct: float
+    percentile_rank: Optional[float] = None
+    median: Optional[float] = None
+    goal: Optional[str] = None  # e.g., "save for trip", "reduce impulse spending"
+
+
+class CoachResponse(BaseModel):
+    title: str
+    diagnosis: str
+    experiment: str
+    watchout: str
+    disclaimer: str
+
+def coach_agent(payload: dict) -> dict:
+    """
+    Returns a small coaching plan. If OpenAI isn't configured, returns a deterministic fallback.
+    """
+    # deterministic fallback (no OpenAI)
+    avg = float(payload.get("avg_spend_pct", 0))
+    std = float(payload.get("std_spend_pct", 0))
+    pct = payload.get("percentile_rank", None)
+    goal = (payload.get("goal") or "").strip()
+
+    # Basic titles
+    if avg < 40: title = "🧊 Zen Saver"
+    elif avg < 55: title = "🌿 Chill Budgeter"
+    elif avg < 70: title = "🙂 Balanced Operator"
+    elif avg < 85: title = "🔥 Spend Ninja"
+    else: title = "🚀 Big Energy Spender"
+
+    vol = "steady" if std < 8 else "bouncy" if std < 18 else "high-variance"
+
+    # If OpenAI available, use it for better wording (still bounded)
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key and OpenAI is not None:
+        client = OpenAI(api_key=api_key)
+
+        system = (
+            "You are a friendly spending coach. "
+            "Be playful but respectful. "
+            "You must NOT give investment advice, tax advice, legal advice, or tell users to take debt. "
+            "Focus on small behavioral experiments. "
+            "Return ONLY valid JSON with keys: title, diagnosis, experiment, watchout."
+        )
+
+        user = {
+            "frequency": payload.get("frequency"),
+            "avg_spend_pct": avg,
+            "std_spend_pct": std,
+            "percentile_rank": pct,
+            "median": payload.get("median"),
+            "goal": goal or None,
+            "style": "2 short sentences each. Concrete. No shame."
+        }
+
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.4,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": json.dumps(user)},
+                ],
+            )
+            out = (resp.choices[0].message.content or "").strip().strip("`")
+            data = json.loads(out)
+
+            # hard guardrails: ensure required keys exist
+            return {
+                "title": data.get("title") or title,
+                "diagnosis": data.get("diagnosis") or f"You're a {vol} spender around {avg:.1f}% of income.",
+                "experiment": data.get("experiment") or "Try a 24-hour pause before any non-essential purchase this week.",
+                "watchout": data.get("watchout") or ("If you hit 2+ days above 85%, pause and review what triggered it." if avg >= 70 else "Watch for one category that spikes your week."),
+            }
+        except Exception as e:
+            print(f"[WARN] coach_agent OpenAI failed: {e}")
+
+    # fallback text (still decent)
+    diagnosis = f"You're a {vol} spender around {avg:.1f}% of income."
+    if pct is not None:
+        diagnosis += f" That’s higher than {pct:.1f}% of users."
+
+    experiment = "Pick one tiny rule for 7 days: cap one category (food, rides, or shopping) by 10%."
+    if goal:
+        experiment = f"For your goal (“{goal}”), try a 7-day rule: move 5% of income to savings first, then spend."
+
+    watchout = "If your spending jumps above 85% in a period, pause and write down the trigger in one line."
+    if std < 8:
+        watchout = "You’re steady — your biggest risk is slow creep. Watch one small habit that grows quietly."
+
+    return {
+        "title": title,
+        "diagnosis": diagnosis,
+        "experiment": experiment,
+        "watchout": watchout,
+    }
+
+@app.post("/agent/coach", response_model=CoachResponse)
+def agent_coach(payload: CoachRequest):
+    try:
+        f = _validate_frequency(payload.frequency)
+        _ = _validate_values(payload.values)  # reuse existing validation
+
+        data = coach_agent({
+            "frequency": f,
+            "values": payload.values,
+            "avg_spend_pct": payload.avg_spend_pct,
+            "std_spend_pct": payload.std_spend_pct,
+            "percentile_rank": payload.percentile_rank,
+            "median": payload.median,
+            "goal": payload.goal,
+        })
+
+        return {
+            "title": data["title"],
+            "diagnosis": data["diagnosis"],
+            "experiment": data["experiment"],
+            "watchout": data["watchout"],
+            "disclaimer": "For education/entertainment only. Not financial advice.",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[ERROR] /agent/coach failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal error")
 
 
 # ----------------------------
