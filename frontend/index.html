@@ -323,7 +323,24 @@
 
       <div class="inputs" id="inputs"></div>
 
-      <button class="btn" id="analyzeBtn" style="margin-top:14px;">Analyze</button>
+      <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+        <input
+          id="goalInput"
+          type="text"
+          placeholder="Goal (optional): save for trip / reduce impulse spending"
+          style="
+            flex:1;
+            min-width:240px;
+            padding:12px;
+            border-radius:12px;
+            border:1px solid rgba(255,255,255,0.14);
+            background: rgba(0,0,0,0.3);
+            color: rgba(255,255,255,0.92);
+            font-size:14px;
+          "
+        />
+        <button class="btn" id="analyzeBtn">Analyze</button>
+      </div>
 
       <div class="card result" id="resultCard">
         <div class="coolTitle" id="coolTitle">—</div>
@@ -526,6 +543,8 @@
       renderHistogram([], avgNum);
     }
 
+    const goal = (document.getElementById("goalInput")?.value || "").trim();
+
     // Coach Agent (uses results + benchmark median)
     try {
       const coachRes = await fetch("/agent/coach", {
@@ -538,7 +557,7 @@
           std_spend_pct: Number(s),           // or sNum
           percentile_rank: pct,
           median: bench?.median ?? null,
-          goal: "save more this month"
+          goal: goal || null
         })
       });
 
