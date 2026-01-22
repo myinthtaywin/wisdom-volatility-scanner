@@ -431,6 +431,7 @@ class CoachResponse(BaseModel):
     diagnosis: str
     experiment: str
     watchout: str
+    fun_fact: str
     disclaimer: str
 
 def coach_agent(payload: dict) -> dict:
@@ -452,6 +453,18 @@ def coach_agent(payload: dict) -> dict:
 
     vol = "steady" if std < 8 else "bouncy" if std < 18 else "high-variance"
 
+    def pick_fun_fact(avg: float, std: float, pct: Optional[float], goal: str) -> str:
+        # No celebrity claims. Just safe, useful behavioral “fun facts”.
+        if goal:
+            return "Fun fact: People stick to goals more when they name a deadline + a reward (even a small one)."
+        if std >= 18:
+            return "Fun fact: Volatility often comes from a few spike days. One simple “pause rule” can cut spikes fast."
+        if avg <= 25:
+            return "Fun fact: Small savings feel invisible daily, but they compound into real freedom over months."
+        if pct is not None and pct >= 80:
+            return "Fun fact: A 24-hour delay on non-essential buys is one of the highest-impact behavior hacks."
+        return "Fun fact: Tracking just ONE category (food / rides / shopping) improves spending awareness more than tracking everything."
+
     # If OpenAI available, use it for better wording (still bounded)
     api_key = os.getenv("OPENAI_API_KEY")
     if api_key and OpenAI is not None:
@@ -462,7 +475,7 @@ def coach_agent(payload: dict) -> dict:
             "Be playful but respectful. "
             "You must NOT give investment advice, tax advice, legal advice, or tell users to take debt. "
             "Focus on small behavioral experiments. "
-            "Return ONLY valid JSON with keys: title, diagnosis, experiment, watchout."
+            "Return ONLY valid JSON with keys: title, diagnosis, experiment, watchout, fun_fact."
         )
 
         user = {
@@ -493,6 +506,7 @@ def coach_agent(payload: dict) -> dict:
                 "diagnosis": data.get("diagnosis") or f"You're a {vol} spender around {avg:.1f}% of income.",
                 "experiment": data.get("experiment") or "Try a 24-hour pause before any non-essential purchase this week.",
                 "watchout": data.get("watchout") or ("If you hit 2+ days above 85%, pause and review what triggered it." if avg >= 70 else "Watch for one category that spikes your week."),
+                "fun_fact": data.get("fun_fact") or pick_fun_fact(avg, std, pct, goal),
             }
         except Exception as e:
             print(f"[WARN] coach_agent OpenAI failed: {e}")
@@ -515,6 +529,7 @@ def coach_agent(payload: dict) -> dict:
         "diagnosis": diagnosis,
         "experiment": experiment,
         "watchout": watchout,
+        "fun_fact": pick_fun_fact(avg, std, pct, goal),
     }
 
 @app.post("/agent/coach", response_model=CoachResponse)
@@ -538,6 +553,7 @@ def agent_coach(payload: CoachRequest):
             "diagnosis": data["diagnosis"],
             "experiment": data["experiment"],
             "watchout": data["watchout"],
+            "fun_fact": data["fun_fact"],
             "disclaimer": "For education/entertainment only. Not financial advice.",
         }
     except ValueError as e:

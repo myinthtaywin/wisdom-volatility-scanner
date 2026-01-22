@@ -569,12 +569,18 @@
 
         // 2) Update the share box (coach is source of truth)
         const coachText =
-          `${coach.title}\n\n` +
+          `${coach.title}\n` +
+          `${avg}% avg spend · ${pct == null ? "—" : pct + "%"} percentile\n` +
+          `Volatility: ${s}%\n\n` +
+
           `${coach.diagnosis}\n\n` +
-          `Try this:\n${coach.experiment}\n\n` +
-          `Watch out:\n${coach.watchout}\n\n` +
+
+          `✅ Try this:\n${coach.experiment}\n\n` +
+          `⚠️ Watch out:\n${coach.watchout}\n\n` +
+          `✨ Fun fact:\n${coach.fun_fact}\n\n` +
+
           `${coach.disclaimer}\n\n` +
-          `Try yours 👉 https://wisdom-volatility-scanner.onrender.com/`;
+          `Share it with your friends 👉 https://wisdom-volatility-scanner.onrender.com/`;
 
         lastShareText = coachText;
         document.getElementById("shareInsightText").innerText = lastShareText;
