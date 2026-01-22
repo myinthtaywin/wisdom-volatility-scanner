@@ -319,6 +319,15 @@ def save_volatility_analysis(result: dict, user_id: Optional[str] = None):
 
 
 def generate_explanation(llm_payload: dict) -> dict:
+    """
+    Returns:
+      {
+        "signals": [ ... ],
+        "explanation": "...",
+        "safe_next_steps": [ ... ]
+      }
+    """
+
     # graceful fallback if OpenAI not configured
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or OpenAI is None:
@@ -331,17 +340,30 @@ def generate_explanation(llm_payload: dict) -> dict:
     client = OpenAI(api_key=api_key)
 
     system_prompt = (
-        "You are Wisdom, a financial MRI for gig workers. "
-        "Explain computed income volatility metrics clearly and cautiously. "
-        "Do NOT invent numbers. Do NOT give credit, legal, or medical advice. "
-        "Use non-judgmental language."
+        "You are Wisdom, a financial MRI for gig workers.\n\n"
+        "Explain computed spending behavior clearly and cautiously.\n"
+        "Do NOT invent numbers.\n"
+        "Do NOT give credit, legal, or medical advice.\n"
+        "Use non-judgmental, calm, and optimistic language.\n\n"
+        "CRITICAL RULES (must follow):\n"
+        "- Percentile meaning:\n"
+        "  - percentile <= 20 → user spends MUCH LESS than average\n"
+        "  - 20 < percentile < 80 → user is around average\n"
+        "  - percentile >= 80 → user spends MUCH MORE than average\n"
+        "- NEVER say \"more than average\" if percentile < 50\n"
+        "- NEVER imply overspending if percentile < 30\n"
+        "- If spending is low, frame advice as optimization or sustainability, NOT reduction\n"
     )
 
     user_prompt = (
-        "Here are computed metrics and a volatility score:\n"
+        "Here is the user context (JSON). Only use these fields; do not invent numbers:\n"
         f"{json.dumps(llm_payload, indent=2)}\n\n"
-        "Return ONLY valid JSON (no markdown). Keys: signals (array), explanation (string), safe_next_steps (array). "
-        "Only explain what is supported by the metrics."
+        "Return ONLY valid JSON (no markdown).\n"
+        "Keys:\n"
+        "- signals: array of short bullet-like strings\n"
+        "- explanation: one short paragraph\n"
+        "- safe_next_steps: array of short actionable steps\n\n"
+        "Only explain what is directly supported by the data."
     )
 
     try:
@@ -353,14 +375,34 @@ def generate_explanation(llm_payload: dict) -> dict:
                 {"role": "user", "content": user_prompt},
             ],
         )
-        out = (resp.choices[0].message.content or "").strip().strip("`")
-        return json.loads(out)
+
+        out = (resp.choices[0].message.content or "").strip()
+
+        # Sometimes models wrap JSON in ```json ... ```
+        if out.startswith("```"):
+            out = out.strip("`")
+            # If it starts with json\n{ ... }, strip the leading "json"
+            if out.lower().startswith("json"):
+                out = out[4:].lstrip()
+
+        parsed = json.loads(out)
+
+        # Basic shape guard (optional but helpful)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM did not return a JSON object.")
+        for k in ("signals", "explanation", "safe_next_steps"):
+            if k not in parsed:
+                raise ValueError(f"LLM JSON missing key: {k}")
+
+        return parsed
+
     except Exception as e:
         return {
             "signals": ["LLM request failed"],
             "explanation": f"Could not generate explanation due to an error: {str(e)}",
             "safe_next_steps": ["Try again later or verify API key."],
         }
+
 
 # ----------------------------
 # Analyze request models + endpoints
@@ -500,14 +542,52 @@ def coach_agent(payload: dict) -> dict:
             out = (resp.choices[0].message.content or "").strip().strip("`")
             data = json.loads(out)
 
+            def enforce_percentile_guardrails(text: str, pct: Optional[float]) -> str:
+                if pct is None:
+                    return text
+
+                # HARD rules
+                if pct < 30:
+                    banned_phrases = [
+                        "more than average",
+                        "overspending",
+                        "spending too much",
+                        "cut back",
+                        "reduce spending",
+                    ]
+                    for phrase in banned_phrases:
+                        text = text.replace(phrase, "")
+
+                if pct < 50:
+                    text = text.replace("more than average", "")
+                    text = text.replace("higher than average", "")
+
+                return text.strip()
+
             # hard guardrails: ensure required keys exist
+            diagnosis = enforce_percentile_guardrails(
+                data.get("diagnosis") or f"You're a {vol} spender around {avg:.1f}% of income.",
+                pct,
+            )
+
+            experiment = enforce_percentile_guardrails(
+                data.get("experiment") or "Try a 24-hour pause before non-essential purchases.",
+                pct,
+            )
+
+            watchout = enforce_percentile_guardrails(
+                data.get("watchout") or "Watch for small habits that quietly grow over time.",
+                pct,
+            )
+
             return {
                 "title": data.get("title") or title,
-                "diagnosis": data.get("diagnosis") or f"You're a {vol} spender around {avg:.1f}% of income.",
-                "experiment": data.get("experiment") or "Try a 24-hour pause before any non-essential purchase this week.",
-                "watchout": data.get("watchout") or ("If you hit 2+ days above 85%, pause and review what triggered it." if avg >= 70 else "Watch for one category that spikes your week."),
+                "diagnosis": diagnosis,
+                "experiment": experiment,
+                "watchout": watchout,
                 "fun_fact": data.get("fun_fact") or pick_fun_fact(avg, std, pct, goal),
             }
+
         except Exception as e:
             print(f"[WARN] coach_agent OpenAI failed: {e}")
 
